@@ -1,0 +1,242 @@
+package com.example.moniy
+
+import android.accessibilityservice.AccessibilityService
+import android.view.accessibility.AccessibilityEvent
+import android.view.accessibility.AccessibilityNodeInfo
+import android.widget.Toast
+import android.util.Log
+import android.content.Context
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.os.Build
+import android.os.Handler
+import android.os.Looper
+import androidx.core.app.NotificationCompat
+import io.flutter.plugin.common.MethodChannel
+
+class MoniyAccessibilityService : AccessibilityService() {
+
+    companion object {
+        var instance: MoniyAccessibilityService? = null
+        var isProtectionActive: Boolean = true
+        
+        // Regex Agresif untuk Judol
+        private val JUDI_REGEX = Regex(
+            "(?i)\\b(" +
+            "judi|slot|gacor|zeus|pragmatic|maxwin|scatter|receh|domino|casino|poker|togel|live22|sbobet|mpo|bosswin|bola88|hoki|cuan|" +
+            "bet|jackpot|jp|depo|wd|withdraw|bonus|rollingan|cashback|spin|olympus|mahjong|bonanza|ways" +
+            ")\\b"
+        )
+    }
+
+    private var lastScanTime: Long = 0
+    private val SCAN_INTERVAL = 1300L 
+    private val debounceHandler = Handler(Looper.getMainLooper())
+    private var pendingBlockRunnable: Runnable? = null
+    private var currentActivePackage: String = "" 
+    
+    private var chromeAppLaunchTime: Long = 0
+    private val CHROME_SAFETY_DELAY = 1300L
+
+    private val browserPackages = setOf(
+        "com.android.chrome",
+        "org.mozilla.firefox",
+        "com.sec.android.app.sbrowser",
+        "com.microsoft.emmx",
+        "com.opera.browser",
+        "com.opera.mini.native",
+        "com.ucmobile.intl",
+        "com.brave.browser",
+        "com.duckduckgo.mobile.android"
+    )
+
+    private val excludedApps = setOf(
+        "com.whatsapp", "com.whatsapp.w4b", "com.facebook.katana",
+        "org.telegram.messenger", "com.instagram.android", "com.android.systemui",
+        "com.example.moniy", "com.android.settings",
+        "com.google.android.inputmethod.latin"
+    )
+
+    private val blacklist = listOf(
+        "judi online", "situs gacor", "bandar judi", "taruhan bola", 
+        "888slot", "slot88", "deposit pulsa tanpa potongan"
+    )
+    
+    private val combinedBlacklistRegex = Regex("(?i)\\b(${blacklist.joinToString("|") { Regex.escape(it) }})\\b")
+
+    private val placeholderTexts = setOf(
+        "search google", "type url", "telusuri", "ketik alamat", "cari atau", "google",
+        "ai mode", "incognito", "daytrans", "gemini", "beranda", "tab baru", 
+        "mulai penelusuran suara", "start voice search", "search or type web address",
+        "suggested items", "trending searches", "refine:", "penelusuran populer",
+        "saran pencarian", "item yang disarankan"
+    )
+
+    private val ignoredViewIds = setOf(
+        "com.android.systemui", "com.google.android.inputmethod.latin",
+        "navigationBarBackground", "statusBarBackground",
+        "com.android.chrome:id/tile_view_title",
+        "com.android.chrome:id/content_suggestions",
+        "com.android.chrome:id/search_box_text",
+        "com.android.chrome:id/url_bar",
+        "com.android.chrome:id/omnibox_results_container",
+        "com.android.chrome:id/line_1",
+        "com.android.chrome:id/line_2"
+    )
+
+    override fun onServiceConnected() {
+        super.onServiceConnected()
+        instance = this
+        createNotificationChannel()
+    }
+
+    override fun onInterrupt() {}
+
+    override fun onDestroy() {
+        super.onDestroy()
+        instance = null
+    }
+
+    override fun onAccessibilityEvent(event: AccessibilityEvent?) {
+        if (event == null || !isProtectionActive) return
+
+        val eventPackageName = event.packageName?.toString() ?: ""
+
+        if (eventPackageName.isNotEmpty() && eventPackageName != currentActivePackage) {
+            if (eventPackageName == "com.android.chrome") {
+                chromeAppLaunchTime = System.currentTimeMillis()
+            }
+            currentActivePackage = eventPackageName
+        }
+
+        if (!browserPackages.contains(currentActivePackage)) return
+        if (excludedApps.contains(currentActivePackage)) return
+
+        val currentTime = System.currentTimeMillis()
+        if (currentTime - lastScanTime < SCAN_INTERVAL) return
+
+        val rootNode = rootInActiveWindow ?: return
+        
+        try {
+            val actualPackage = rootNode.packageName?.toString() ?: ""
+            if (!browserPackages.contains(actualPackage)) return
+
+            if (actualPackage == "com.android.chrome") {
+                if (currentTime - chromeAppLaunchTime < CHROME_SAFETY_DELAY) {
+                    return 
+                }
+            }
+
+            val sb = StringBuilder()
+            extractTextRecursive(rootNode, sb)
+            val capturedText = sb.toString()
+
+            if (capturedText.isNotBlank()) {
+                lastScanTime = currentTime
+                
+                sendTextToFlutter(capturedText)
+
+                // Blocking Native diaktifkan sementara karena AI belum terintegrasi di Flutter.
+                if (checkText(capturedText)) {
+                    triggerBlocking()
+                }
+            }
+        } finally {
+            rootNode.recycle()
+        }
+    }
+
+    private fun checkText(text: String): Boolean {
+        return JUDI_REGEX.containsMatchIn(text) || combinedBlacklistRegex.containsMatchIn(text)
+    }
+
+    fun triggerBlocking(): Boolean {
+        cancelPendingBlock()
+        Handler(Looper.getMainLooper()).post {
+            performGlobalAction(GLOBAL_ACTION_BACK)
+            Handler(Looper.getMainLooper()).postDelayed({
+                performGlobalAction(GLOBAL_ACTION_HOME)
+            }, 300)
+            incrementBlockedCount()
+            showBlockingNotification()
+            Toast.makeText(applicationContext, "Moniy: ⛔ KONTEN JUDI DIBLOKIR!", Toast.LENGTH_LONG).show()
+        }
+        return true
+    }
+
+    private fun extractTextRecursive(node: AccessibilityNodeInfo?, sb: StringBuilder) {
+        if (node == null) return
+
+        val viewId = node.viewIdResourceName ?: ""
+        if (ignoredViewIds.any { viewId.contains(it) }) return
+
+        val rawText = node.text?.toString() ?: ""
+        val contentDesc = node.contentDescription?.toString() ?: ""
+        val combinedRaw = "$rawText $contentDesc".lowercase()
+
+        val isSuggestion = combinedRaw.contains("suggested items") || 
+                           combinedRaw.contains("refine:") || 
+                           combinedRaw.contains("penelusuran populer")
+        
+        val isPlaceholder = placeholderTexts.any { combinedRaw.contains(it) }
+
+        if (!isPlaceholder && !isSuggestion) {
+            if (rawText.isNotBlank()) sb.append(rawText).append(" ")
+            if (contentDesc.isNotBlank()) sb.append(contentDesc).append(" ")
+        }
+
+        for (i in 0 until node.childCount) {
+            val child = node.getChild(i)
+            extractTextRecursive(child, sb)
+            child?.recycle()
+        }
+    }
+
+    private fun cancelPendingBlock() {
+        pendingBlockRunnable?.let { 
+            debounceHandler.removeCallbacks(it)
+            pendingBlockRunnable = null
+        }
+    }
+
+    private fun incrementBlockedCount() {
+        val prefs = getSharedPreferences("FlutterSharedPreferences", Context.MODE_PRIVATE)
+        val currentCount = prefs.getLong("flutter.blocked_count", 0L)
+        prefs.edit().putLong("flutter.blocked_count", currentCount + 1).apply()
+    }
+
+    private fun showBlockingNotification() {
+        val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        val notification = NotificationCompat.Builder(this, "MONIY_CHANNEL")
+            .setContentTitle("🛡️ Moniy Beraksi")
+            .setContentText("Konten judi berhasil diblokir!")
+            .setSmallIcon(android.R.drawable.ic_secure)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setAutoCancel(true)
+            .build()
+        notificationManager.notify(1001, notification)
+    }
+
+    private fun createNotificationChannel() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(
+                "MONIY_CHANNEL", "Moniy Protection", NotificationManager.IMPORTANCE_HIGH
+            )
+            val manager = getSystemService(NotificationManager::class.java)
+            manager?.createNotificationChannel(channel)
+        }
+    }
+
+    private fun sendTextToFlutter(text: String) {
+        Handler(Looper.getMainLooper()).post {
+            try {
+                MainActivity.flutterEngineInstance?.dartExecutor?.binaryMessenger?.let { messenger ->
+                    val channel = MethodChannel(messenger, "com.example.moniy/accessibility")
+                    channel.invokeMethod("onTextDetected", text)
+                }
+            } catch (e: Exception) {
+                Log.e("MoniyService", "Gagal kirim ke Flutter: ${e.message}")
+            }
+        }
+    }
+}

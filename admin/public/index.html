@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Moniy Admin Panel</title>
+    <link rel="stylesheet" href="/css/admin.css">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <div class="logo">
+                    <div class="logo-icon">M</div>
+                    <h2>Moniy Admin</h2>
+                </div>
+            </div>
+            <nav class="sidebar-nav">
+                <a href="#" class="nav-item active" data-page="dashboard">
+                    <i data-lucide="layout-dashboard"></i> Dashboard
+                </a>
+                <a href="#" class="nav-item" data-page="users">
+                    <i data-lucide="users"></i> Pengguna
+                </a>
+                <a href="#" class="nav-item" data-page="modules">
+                    <i data-lucide="book-open"></i> Modul Belajar
+                </a>
+                <a href="#" class="nav-item" data-page="community">
+                    <i data-lucide="message-square"></i> Komunitas
+                </a>
+                <a href="#" class="nav-item" data-page="gamification">
+                    <i data-lucide="award"></i> Gamifikasi
+                </a>
+                <a href="#" class="nav-item" data-page="settings">
+                    <i data-lucide="settings"></i> Pengaturan
+                </a>
+            </nav>
+            <div class="sidebar-footer">
+                <div class="user-info">
+                    <img src="https://ui-avatars.com/api/?name=Admin+Moniy&background=0056D2&color=fff" alt="Admin" class="avatar">
+                    <div class="user-details">
+                        <span class="user-name">Super Admin</span>
+                        <span class="user-role">admin@moniy.id</span>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <header class="top-header">
+                <div class="search-bar">
+                    <i data-lucide="search"></i>
+                    <input type="text" placeholder="Cari apapun di Moniy...">
+                </div>
+                <div class="header-actions">
+                    <button class="icon-btn"><i data-lucide="bell"></i></button>
+                </div>
+            </header>
+
+            <div class="page-content" id="dashboard-page">
+                <h1 class="page-title">Dashboard Overview</h1>
+                
+                <!-- Stat Cards -->
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-icon blue"><i data-lucide="users"></i></div>
+                        <div class="stat-details">
+                            <h3>Total Pengguna</h3>
+                            <p class="stat-value" id="stat-users">0</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon teal"><i data-lucide="book-open"></i></div>
+                        <div class="stat-details">
+                            <h3>Total Modul</h3>
+                            <p class="stat-value" id="stat-modules">0</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon orange"><i data-lucide="message-square"></i></div>
+                        <div class="stat-details">
+                            <h3>Total Grup</h3>
+                            <p class="stat-value" id="stat-groups">0</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon purple"><i data-lucide="edit-3"></i></div>
+                        <div class="stat-details">
+                            <h3>Total Postingan</h3>
+                            <p class="stat-value" id="stat-posts">0</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Charts Section -->
+                <div class="charts-grid">
+                    <div class="chart-card">
+                        <h3>Pertumbuhan Pengguna</h3>
+                        <canvas id="userGrowthChart"></canvas>
+                    </div>
+                    <div class="chart-card">
+                        <h3>Penyelesaian Modul</h3>
+                        <canvas id="moduleCompletionChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Users Page (Hidden by default) -->
+            <div class="page-content hidden" id="users-page">
+                <div class="page-header">
+                    <h1 class="page-title">Manajemen Pengguna</h1>
+                    <button class="btn btn-primary" onclick="alert('Feature coming soon')"><i data-lucide="plus"></i> Tambah User</button>
+                </div>
+                <div class="card table-card">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Nama</th>
+                                <th>Email</th>
+                                <th>Level</th>
+                                <th>XP</th>
+                                <th>Role</th>
+                                <th>Aksi</th>
+                            </tr>
+                        </thead>
+                        <tbody id="users-table-body">
+                            <tr><td colspan="7" class="text-center">Loading data...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            
+            <!-- Other pages can be added here with similar structure -->
+            <div class="page-content hidden" id="modules-page">
+                <h1 class="page-title">Manajemen Modul</h1>
+                <p>Data modul akan ditampilkan di sini.</p>
+            </div>
+            
+             <div class="page-content hidden" id="community-page">
+                <h1 class="page-title">Manajemen Komunitas</h1>
+                <p>Data grup dan diskusi akan ditampilkan di sini.</p>
+            </div>
+
+        </main>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="toast">Notifikasi</div>
+
+    <script src="/js/admin.js"></script>
+    <script>
+        lucide.createIcons();
+    </script>
+</body>
+</html>
