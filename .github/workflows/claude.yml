@@ -21,10 +21,15 @@ jobs:
   claude:
     # Gerbang biaya: runner hanya nyala kalau '@claude' benar-benar disebut.
     # Tanpa if ini, SETIAP komentar di repo menyalakan runner.
+    # Pagar aktor: hanya pemilik repo yang boleh memanggil @claude.
+    # Kolaborator lain tetap punya akses penuh ke repo - yang dibatasi
+    # hanya pemicu workflow ini, supaya kuota langganan tidak terpakai orang lain.
     if: >
+      github.event.sender.login == 'langss1' && (
       (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude')) ||
       (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude')) ||
       (github.event_name == 'issues' && (contains(github.event.issue.body, '@claude') || contains(github.event.issue.title, '@claude')))
+      )
     runs-on: ubuntu-latest
     timeout-minutes: 20        # sabuk pengaman kalau job nyangkut
     permissions:
