@@ -12,18 +12,26 @@ on:
   issues:
     types: [opened]
 
-# Satu run per issue/PR. Komentar susulan membatalkan run lama -> hemat menit.
+# Satu run per issue/PR PER AKTOR. Komentar susulan dari orang yang sama
+# membatalkan run lamanya -> hemat menit.
+#
+# JANGAN hapus ${{ github.actor }} dari group.
+# Tanpa itu, komentar status "Claude Code is working..." yang diposting bot
+# memicu run issue_comment baru yang SEKELOMPOK dengan run yang sedang jalan,
+# lalu cancel-in-progress membunuh Claude di tengah kerja. Terjadi 2026-09-03
+# di Deep-Research issue #2: run A cancelled, run B skipped, tidak ada hasil.
+# concurrency dievaluasi di level run, SEBELUM 'if' di level job - jadi pagar
+# 'if' di bawah tidak bisa mencegahnya.
 concurrency:
-  group: claude-${{ github.event.issue.number || github.event.pull_request.number }}
+  group: claude-${{ github.event.issue.number || github.event.pull_request.number }}-${{ github.actor }}
   cancel-in-progress: true
 
 jobs:
   claude:
-    # Gerbang biaya: runner hanya nyala kalau '@claude' benar-benar disebut.
-    # Tanpa if ini, SETIAP komentar di repo menyalakan runner.
-    # Pagar aktor: hanya pemilik repo yang boleh memanggil @claude.
-    # Kolaborator lain tetap punya akses penuh ke repo - yang dibatasi
-    # hanya pemicu workflow ini, supaya kuota langganan tidak terpakai orang lain.
+    # Gerbang biaya + pagar aktor: runner hanya nyala kalau '@claude' disebut
+    # OLEH pemilik repo. Kolaborator lain tetap punya akses penuh ke repo -
+    # yang dibatasi hanya pemicu workflow ini, supaya kuota langganan tidak
+    # terpakai orang lain. Login bot juga bukan 'langss1', jadi ikut tersaring.
     if: >
       github.event.sender.login == 'langss1' && (
       (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude')) ||
