@@ -1,0 +1,48 @@
+name: Claude
+
+# Dipanggil dengan menyebut @claude di issue atau komentar PR.
+# Auth memakai token langganan (CLAUDE_CODE_OAUTH_TOKEN), bukan API key per-token.
+# Ganti baris claude_code_oauth_token dengan anthropic_api_key kalau pindah ke API key.
+
+on:
+  issue_comment:
+    types: [created]
+  pull_request_review_comment:
+    types: [created]
+  issues:
+    types: [opened]
+
+# Satu run per issue/PR. Komentar susulan membatalkan run lama -> hemat menit.
+concurrency:
+  group: claude-${{ github.event.issue.number || github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  claude:
+    # Gerbang biaya: runner hanya nyala kalau '@claude' benar-benar disebut.
+    # Tanpa if ini, SETIAP komentar di repo menyalakan runner.
+    # Pagar aktor: hanya pemilik repo yang boleh memanggil @claude.
+    # Kolaborator lain tetap punya akses penuh ke repo - yang dibatasi
+    # hanya pemicu workflow ini, supaya kuota langganan tidak terpakai orang lain.
+    if: >
+      github.event.sender.login == 'langss1' && (
+      (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude')) ||
+      (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude')) ||
+      (github.event_name == 'issues' && (contains(github.event.issue.body, '@claude') || contains(github.event.issue.title, '@claude')))
+      )
+    runs-on: ubuntu-latest
+    timeout-minutes: 20        # sabuk pengaman kalau job nyangkut
+    permissions:
+      contents: write          # ubah file & push branch
+      pull-requests: write     # bikin PR
+      issues: write            # balas di issue
+      id-token: write          # wajib: auth GitHub App bawaan action
+      actions: read            # baca hasil CI di PR
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+      - uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          # claude_args: "--max-turns 15"   # aktifkan kalau run terasa boros
