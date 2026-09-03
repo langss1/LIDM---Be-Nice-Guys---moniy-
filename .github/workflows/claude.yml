@@ -53,4 +53,15 @@ jobs:
       - uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          # Nama branch tanpa timestamp -> 'claude/issue-7-perbaiki-form-login',
+          # bukan 'claude/issue-7-1757142033'. Dipasangkan dengan setelan repo
+          # "Automatically delete head branches", branch hilang begitu PR di-merge,
+          # jadi nama bersih ini bisa dipakai ulang dan tidak pernah menumpuk.
+          #
+          # CATATAN: action TIDAK bisa dipaksa memakai satu branch tetap. Kalau
+          # nama yang dihasilkan sudah ada di remote, dia sengaja jatuh ke format
+          # timestamp (src/github/operations/branch.ts). Jangan coba menguncinya.
+          branch_name_template: "{{prefix}}{{entityType}}-{{entityNumber}}-{{description}}"
+          # Satu komentar status yang di-update, bukan komentar baru tiap langkah.
+          use_sticky_comment: "true"
           # claude_args: "--max-turns 15"   # aktifkan kalau run terasa boros
